@@ -12,12 +12,15 @@ class SubScreen(object):
         self.points = []
         self.color = (0, 0, 0)
         self.width = 1
+        self.label = ""
+        self.info = ""
         self.screen = pygame.Surface(size, pygame.SRCALPHA, 32)
         self.screen.fill((255, 255, 255, 0))
 
 
 class SDLThread:
-    def __init__(self, size):
+    def __init__(self, panel, size):
+        self.panel = panel
         self.size = size
         self.m_bKeepGoing = self.m_bRunning = False
         self.screen = pygame.display.set_mode(size)
@@ -63,7 +66,7 @@ class SDLThread:
         while self.m_bKeepGoing:
             event = pygame.event.poll()
             if event.type == pygame.QUIT:
-                return
+                self.Stop()  # 待确定
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # 鼠标单击左键
                 if event.button == 1:
@@ -74,10 +77,12 @@ class SDLThread:
                         self.draw_flag = True
                 elif event.button == 3:
                     if len(self.active_screen.points) > 1:
-                        self.screen_list.append(self.active_screen)
                         pygame.image.save(self.active_screen.screen, "s.png")
                         img = cv.imread("s.png")
-                        print self.handle(img)
+                        self.panel.type_box.SetValue(self.handle(img))
+                        self.active_screen.label = self.panel.type_box.GetValue()
+                        self.active_screen.info = self.panel.input_box.GetValue()
+                        self.screen_list.append(self.active_screen)
                         self.active_screen = SubScreen(self.size)
             elif event.type == pygame.MOUSEMOTION:
                 (x, y) = pygame.mouse.get_pos()
@@ -100,7 +105,7 @@ class SDLPanel(wx.Panel):
         os.environ['SDL_WINDOWID'] = str(self.GetHandle())
         os.environ['SDL_VIDEODRIVER'] = 'windib'
         pygame.display.init()
-        self.thread = SDLThread(tplSize)
+        self.thread = SDLThread(parent, tplSize)
         self.thread.Start()
 
     def __del__(self):
@@ -108,14 +113,16 @@ class SDLPanel(wx.Panel):
 
 
 class MyFrame(wx.Frame):
-    def __init__(self, parent, ID, strTitle, tplSize, win_size):
-        wx.Frame.__init__(self, parent, ID, strTitle, size=win_size)
+    def __init__(self, parent, ID, title, tplSize, win_size):
+        wx.Frame.__init__(self, parent, ID, title, size=win_size)
+        self.input_box = wx.TextCtrl(self, -1, '', pos=(210, 620), size=(200, 30))
+        self.type_box = wx.TextCtrl(self,  -1, '', pos=(10, 620), size=(100, 30))
+        self.type_box.SetEditable(False)
         self.pnlSDL = SDLPanel(self, -1, tplSize)
-        self.user_box = wx.TextCtrl(self, -1, u'161250102', pos=(10, 620), size=(200, 30))
         # self.Fit()
 
 
-app = wx.PySimpleApp()
+app = wx.App()
 frame = MyFrame(None, wx.ID_ANY, "SDL Frame", (800, 600), (800, 700))
 frame.Show()
 app.MainLoop()
