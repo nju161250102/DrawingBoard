@@ -14,6 +14,7 @@ class SubScreen(object):
         self.width = 1
         self.label = ""
         self.info = ""
+        self.active = False
         self.screen = pygame.Surface(size, pygame.SRCALPHA, 32)
         self.screen.fill((255, 255, 255, 0))
 
@@ -26,8 +27,13 @@ class SDLThread:
         self.screen = pygame.display.set_mode(size)
         self.screen.fill((255, 255, 255))
         self.screen_list = []
+        self.screen_p = 0
         self.active_screen = SubScreen(size)
         self.draw_flag = False
+        self.flag = False
+
+        self.panel.pre_button.Bind(wx.EVT_BUTTON, self.pre_screen)
+        self.panel.next_button.Bind(wx.EVT_BUTTON, self.next_screen)
 
     def handle(self, img):
         # 二值化图像
@@ -52,6 +58,32 @@ class SDLThread:
                 return "多边形"
         return ""
 
+    def pre_screen(self, event):
+        if not self.flag:
+            return
+        if self.screen_p > 0:
+            self.active_screen.active = False
+            self.screen_p -= 1
+            self.active_screen = self.screen_list[self.screen_p]
+            self.active_screen.active = True
+            self.panel.input_box.SetValue(self.active_screen.info)
+            self.panel.type_box.SetValue(self.active_screen.label)
+
+    def next_screen(self, event):
+        if not self.flag:
+            return
+        if self.screen_p < len(self.screen_list) - 1:
+            self.active_screen.active = False
+            self.screen_p += 1
+            self.active_screen = self.screen_list[self.screen_p]
+            self.active_screen.active = True
+            self.panel.input_box.SetValue(self.active_screen.info)
+            self.panel.type_box.SetValue(self.active_screen.label)
+        else:
+            self.active_screen.active = False
+            self.screen_p += 1
+            self.active_screen = SubScreen(self.size)
+
     def Start(self):
         self.m_bKeepGoing = self.m_bRunning = True
         thread.start_new_thread(self.Run, ())
@@ -70,19 +102,24 @@ class SDLThread:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # 鼠标单击左键
                 if event.button == 1:
+                    self.flag = False
                     if self.draw_flag:
                         self.draw_flag = False
                         pygame.draw.lines(self.active_screen.screen, (0, 0, 0), True, self.active_screen.points)
                     else:
                         self.draw_flag = True
+                        self.panel.type_box.SetValue("")
+                        self.panel.input_box.SetValue("")
                 elif event.button == 3:
                     if len(self.active_screen.points) > 1:
+                        self.flag = True
                         pygame.image.save(self.active_screen.screen, "s.png")
                         img = cv.imread("s.png")
                         self.panel.type_box.SetValue(self.handle(img))
                         self.active_screen.label = self.panel.type_box.GetValue()
                         self.active_screen.info = self.panel.input_box.GetValue()
                         self.screen_list.append(self.active_screen)
+                        self.screen_p += 1
                         self.active_screen = SubScreen(self.size)
             elif event.type == pygame.MOUSEMOTION:
                 (x, y) = pygame.mouse.get_pos()
@@ -92,6 +129,8 @@ class SDLThread:
             if len(self.active_screen.points) > 1:
                 pygame.draw.lines(self.active_screen.screen, self.active_screen.color, not self.draw_flag, self.active_screen.points)
             for s in self.screen_list:
+                color = (255, 0, 0) if s.active else s.color
+                pygame.draw.lines(s.screen, color, not self.draw_flag, s.points)
                 self.screen.blit(pygame.Surface.convert_alpha(s.screen), (0, 0))
             self.screen.blit(pygame.Surface.convert_alpha(self.active_screen.screen), (0, 0))
             pygame.display.flip()
@@ -115,14 +154,16 @@ class SDLPanel(wx.Panel):
 class MyFrame(wx.Frame):
     def __init__(self, parent, ID, title, tplSize, win_size):
         wx.Frame.__init__(self, parent, ID, title, size=win_size)
-        self.input_box = wx.TextCtrl(self, -1, '', pos=(210, 620), size=(200, 30))
-        self.type_box = wx.TextCtrl(self,  -1, '', pos=(10, 620), size=(100, 30))
+        self.SetMaxSize(win_size)
+        self.input_box = wx.TextCtrl(self, -1, '', pos=(310, 620), size=(200, 30))
+        self.type_box = wx.TextCtrl(self,  -1, '', pos=(110, 620), size=(100, 30))
         self.type_box.SetEditable(False)
+        self.pre_button = wx.Button(self, label="上一图层", pos=(10, 610), size=(80, 30))
+        self.next_button = wx.Button(self, label="下一图层", pos=(10, 650), size=(80, 30))
         self.pnlSDL = SDLPanel(self, -1, tplSize)
-        # self.Fit()
 
 
 app = wx.App()
-frame = MyFrame(None, wx.ID_ANY, "SDL Frame", (800, 600), (800, 700))
+frame = MyFrame(None, wx.ID_ANY, "SDL Frame", (800, 600), (810, 740))
 frame.Show()
 app.MainLoop()
