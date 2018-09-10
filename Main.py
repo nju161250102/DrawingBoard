@@ -25,7 +25,7 @@ class SubScreen(object):
         for line in self.lines:
             if len(line) > 1:
                 active_color = (255 - self.color[0], self.color[1], self.color[2])
-                pygame.draw.lines(self.screen, active_color, False, line, self.width + 1)
+                pygame.draw.lines(self.screen, active_color, False, line, self.width)
 
     def new_line(self):
         self.lines.append([])
@@ -74,36 +74,53 @@ class SDLThread:
         self.current_num = 0
         self.draw_state = 0  # 0-等待绘制 1-正在绘制 2-结束图层绘制
 
-        # self.panel.pre_button.Bind(wx.EVT_BUTTON, self.pre_screen)
-        # self.panel.next_button.Bind(wx.EVT_BUTTON, self.next_screen)
+        self.panel.pre_button.Bind(wx.EVT_BUTTON, self.pre_screen)
+        self.panel.next_button.Bind(wx.EVT_BUTTON, self.next_screen)
 
     def current_screen(self):
         return self.screen_list[self.current_num]
 
-    def draw(self):
+    def pre_screen(self, event):
+        if self.draw_state == 1:
+            return
+        if self.current_num > 0:
+            self.current_num -= 1
+            self.panel.set_text(self.current_screen().label, self.current_screen().info)
+
+    def next_screen(self, event):
+        if self.draw_state == 1:
+            return
         if self.current_num < len(self.screen_list) - 1:
-            self.current_screen().active_draw()
-        for screen in self.screen_list:
-            screen.draw()
+            self.current_num += 1
+            self.panel.set_text(self.current_screen().label, self.current_screen().info)
+
+    def draw(self):
+        for index, screen in enumerate(self.screen_list):
+            if index == self.current_num and self.current_num < len(self.screen_list) - 1:
+                screen.active_draw()
+            else:
+                screen.draw()
             self.main_screen.blit(pygame.Surface.convert_alpha(screen.screen), (0, 0))
         pygame.display.flip()
 
     def save_screen(self):
         # 结束一个图层的绘制
-        # self.draw_state = 0
         self.current_screen().get_shape()
         self.current_screen().info = self.panel.get_input()
 
     def add_screen(self):
         if self.current_num == len(self.screen_list) - 1:
             self.screen_list.append(SubScreen(self.size))
+            self.panel.set_text("", "")
             self.current_num += 1
 
     def run(self):
         while True:
+            if not pygame.display.get_init():
+                break
             event = pygame.event.poll()
             if event.type == pygame.QUIT:
-                pass
+                break
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
                 # 鼠标单击左键
@@ -126,7 +143,6 @@ class SDLThread:
                 if self.draw_state == 1 and pos[1] < self.size[1]:
                     self.current_screen().add_point(pos)
 
-            # print self.current_screen().lines
             self.draw()
 
     def start(self):
@@ -157,6 +173,10 @@ class MyFrame(wx.Frame):
 
     def get_input(self):
         return self.input_box.GetValue()
+
+    def set_text(self, label, info):
+        self.input_box.SetValue(info)
+        self.type_box.SetValue(label)
 
 
 def main():
