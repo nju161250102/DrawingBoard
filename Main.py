@@ -1,46 +1,48 @@
 # coding=utf-8
 import wx
 import os
+import math
 import thread
 import pygame
 import cv2 as cv
+import Model
 
 
-class SubScreen(object):
-    def __init__(self, size, color=(0, 0, 0), width=1):
+class SDLThread:
+    def __init__(self, panel, size):
+        self.panel = panel
+        self.size = size
+        self.main_screen = pygame.display.set_mode(size)
+        self.main_screen.fill((255, 255, 255))
+        self.shapes = []
         self.lines = []
-        self.color = color
-        self.width = width
-        self.label = ""
-        self.info = ""
-        self.screen = pygame.Surface(size, pygame.SRCALPHA, 32)
-        self.screen.fill((255, 255, 255, 0))
+        self.current_num = 0
+        self.draw_state = 0  # 0-等待绘制 1-正在绘制 2-结束图层绘制
+        self.panel.identify_button.Bind(wx.EVT_BUTTON, self.get_shape)
+
+    def draw_lines(self, screen):
+        for line in self.lines:
+            if len(line) > 1:
+                pygame.draw.lines(screen, self.get_color(), False, line, 1)
 
     def draw(self):
-        for line in self.lines:
-            if len(line) > 1:
-                pygame.draw.lines(self.screen, self.color, False, line, self.width)
-
-    def active_draw(self):
-        for line in self.lines:
-            if len(line) > 1:
-                active_color = (255 - self.color[0], self.color[1], self.color[2])
-                pygame.draw.lines(self.screen, active_color, False, line, self.width)
-
-    def new_line(self):
-        self.lines.append([])
+        for shape in self.shapes:
+            shape.draw(self.main_screen)
+        self.draw_lines(self.main_screen)
+        pygame.display.flip()
 
     def add_point(self, pos):
         if len(self.lines) > 0:
             self.lines[-1].append(pos)
 
-    def del_line(self):
-        if len(self.lines) > 0:
-            self.lines.pop()
+    def get_color(self):
+        return (0, 0 ,0)
 
-    def get_shape(self):
-        self.draw()
-        pygame.image.save(self.screen, "s.png")
+    def get_shape(self, event):
+        screen = pygame.Surface(self.size, pygame.SRCALPHA, 32)
+        screen.fill((255, 255, 255, 0))
+        self.draw_lines(screen)
+        pygame.image.save(screen, "s.png")
         img = cv.imread("s.png")
         # 二值化图像
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -54,65 +56,28 @@ class SubScreen(object):
 
             # 分析几何形状
             corners = len(approx)
+            # print approx
             if corners == 3:
-                self.label = "三角形"
+                points = [(p[0][0], p[0][1]) for p in approx]
+                self.shapes.append(Model.Triangle(points, self.get_color(), self.panel.get_input()))
             elif corners == 4:
-                self.label = "矩形"
+                x_list = [p[0][0] for p in approx]
+                y_list = [p[0][1] for p in approx]
+                x_list.sort()
+                y_list.sort()
+                pos = ((x_list[0] + x_list[1]) / 2, (y_list[0] + y_list[1]) / 2)
+                size = ((x_list[2] + x_list[3]) / 2 - pos[0], (y_list[2] + y_list[3]) / 2 - pos[1])
+                self.shapes.append(Model.Rect(pos, size, self.get_color(), self.panel.get_input()))
             elif corners >= 7:
-                self.label = "圆形"
-            elif 4 < corners < 7:
-                self.label = "多边形"
-
-
-class SDLThread:
-    def __init__(self, panel, size):
-        self.panel = panel
-        self.size = size
-        self.main_screen = pygame.display.set_mode(size)
+                mm = cv.moments(contours[cnt])
+                cx = int(mm['m10'] / mm['m00'])
+                cy = int(mm['m01'] / mm['m00'])
+                radius_list = map(lambda point: math.sqrt((point[0][0] - cx)**2 + (point[0][1] - cy)**2), approx)
+                radius = int(sum(radius_list) / len(radius_list))
+                self.shapes.append(Model.Circle((cx, cy), radius, self.get_color(), self.panel.get_input()))
+        self.lines = []
         self.main_screen.fill((255, 255, 255))
-        self.screen_list = [SubScreen(size)]
-        self.current_num = 0
-        self.draw_state = 0  # 0-等待绘制 1-正在绘制 2-结束图层绘制
-
-        self.panel.pre_button.Bind(wx.EVT_BUTTON, self.pre_screen)
-        self.panel.next_button.Bind(wx.EVT_BUTTON, self.next_screen)
-
-    def current_screen(self):
-        return self.screen_list[self.current_num]
-
-    def pre_screen(self, event):
-        if self.draw_state == 1:
-            return
-        if self.current_num > 0:
-            self.current_num -= 1
-            self.panel.set_text(self.current_screen().label, self.current_screen().info)
-
-    def next_screen(self, event):
-        if self.draw_state == 1:
-            return
-        if self.current_num < len(self.screen_list) - 1:
-            self.current_num += 1
-            self.panel.set_text(self.current_screen().label, self.current_screen().info)
-
-    def draw(self):
-        for index, screen in enumerate(self.screen_list):
-            if index == self.current_num and self.current_num < len(self.screen_list) - 1:
-                screen.active_draw()
-            else:
-                screen.draw()
-            self.main_screen.blit(pygame.Surface.convert_alpha(screen.screen), (0, 0))
-        pygame.display.flip()
-
-    def save_screen(self):
-        # 结束一个图层的绘制
-        self.current_screen().get_shape()
-        self.current_screen().info = self.panel.get_input()
-
-    def add_screen(self):
-        if self.current_num == len(self.screen_list) - 1:
-            self.screen_list.append(SubScreen(self.size))
-            self.panel.set_text("", "")
-            self.current_num += 1
+        self.panel.set_text(self.shapes[-1].get_shape(), "")
 
     def run(self):
         while True:
@@ -128,20 +93,18 @@ class SDLThread:
                     # 处于等待绘制状态
                     if self.draw_state == 0:
                         self.draw_state = 1
-                        self.current_screen().new_line()
+                        self.lines.append([])
                     # 处于正在绘制状态
                     elif self.draw_state == 1:
                         self.draw_state = 0
-                        self.save_screen()
-                    self.current_screen().add_point(pos)
+                    self.add_point(pos)
                 # 鼠标单击右键
                 elif event.button == 3:
-                    self.save_screen()
-                    self.add_screen()
+                    pass
             elif event.type == pygame.MOUSEMOTION:
                 pos = pygame.mouse.get_pos()
                 if self.draw_state == 1 and pos[1] < self.size[1]:
-                    self.current_screen().add_point(pos)
+                    self.add_point(pos)
 
             self.draw()
 
@@ -167,7 +130,7 @@ class MyFrame(wx.Frame):
         self.input_box = wx.TextCtrl(self, -1, '', pos=(310, 620), size=(200, 30))
         self.type_box = wx.TextCtrl(self,  -1, '', pos=(110, 620), size=(100, 30))
         self.type_box.SetEditable(False)
-        self.pre_button = wx.Button(self, label="上一图层", pos=(10, 610), size=(80, 30))
+        self.identify_button = wx.Button(self, label="识别", pos=(10, 610), size=(80, 30))
         self.next_button = wx.Button(self, label="下一图层", pos=(10, 650), size=(80, 30))
         self.pnlSDL = SDLPanel(self, -1, panel_size)
 
