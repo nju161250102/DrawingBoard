@@ -9,7 +9,10 @@ class Shape(object):
         self.info = info
         self.width = width
 
-    def draw(self, screen):
+    def active_color(self):
+        return 255 - self.color[0], self.color[1], self.color[2]
+
+    def draw(self, screen, active):
         pass
 
     def get_shape(self):
@@ -24,8 +27,8 @@ class Triangle(Shape):
         Shape.__init__(self, color, info)
         self.points = points
 
-    def draw(self, screen):
-        pygame.draw.lines(screen, self.color, True, self.points)
+    def draw(self, screen, active):
+        pygame.draw.lines(screen, self.active_color() if active else self.color, True, self.points)
 
     def get_shape(self):
         return "三角形"
@@ -36,7 +39,8 @@ class Triangle(Shape):
         t3 = self._cross_product(point, self.points[2], self.points[0])
         return (t1 < 0 and t2 < 0 and t3 < 0) or (t1 > 0 and t2 > 0 and t3 > 0)
 
-    def _cross_product(self, p, point_a, point_b):
+    @staticmethod
+    def _cross_product(p, point_a, point_b):
         return (point_a[0] - p[0])*(point_b[1] - p[1]) - (point_a[1] - p[1])*(point_b[0] - p[0])
 
 
@@ -46,8 +50,9 @@ class Rect(Shape):
         self.pos = pos  # (left, top)
         self.size = size  # (width, height)
 
-    def draw(self, screen):
-        pygame.draw.rect(screen, self.color, pygame.rect.Rect(self.pos, self.size), self.width)
+    def draw(self, screen, active):
+        pygame.draw.rect(screen, self.active_color() if active else self.color,
+                         pygame.rect.Rect(self.pos, self.size), self.width)
 
     def get_shape(self):
         return "矩形"
@@ -62,8 +67,9 @@ class Square(Shape):
         self.pos = pos
         self.side = side
 
-    def draw(self, screen):
-        pygame.draw.rect(screen, self.color, pygame.rect.Rect(self.pos, (self.side, self.side)), self.width)
+    def draw(self, screen, active):
+        pygame.draw.rect(screen, self.active_color() if active else self.color,
+                         pygame.rect.Rect(self.pos, (self.side, self.side)), self.width)
 
     def get_shape(self):
         return "正方形"
@@ -78,8 +84,8 @@ class Circle(Shape):
         self.pos = pos
         self.radius = radius
 
-    def draw(self, screen):
-        pygame.draw.circle(screen, self.color, self.pos, self.radius, self.width)
+    def draw(self, screen, active):
+        pygame.draw.circle(screen, self.active_color() if active else self.color, self.pos, self.radius, self.width)
 
     def get_shape(self):
         return "圆形"

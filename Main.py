@@ -17,8 +17,16 @@ class SDLThread:
         self.shapes = []
         self.lines = []
         self.current_num = 0
-        self.draw_state = 0  # 0-等待绘制 1-正在绘制 2-结束图层绘制
+        self.state = 0  # 0-等待绘制 1-正在绘制 2-选择模式
         self.panel.identify_button.Bind(wx.EVT_BUTTON, self.get_shape)
+        self.panel.choose_button.Bind(wx.EVT_BUTTON, self.choose)
+
+    def add_point(self, pos):
+        if len(self.lines) > 0:
+            self.lines[-1].append(pos)
+
+    def choose(self, event):
+        self.state = 2
 
     def draw_lines(self, screen):
         for line in self.lines:
@@ -26,14 +34,10 @@ class SDLThread:
                 pygame.draw.lines(screen, self.get_color(), False, line, 1)
 
     def draw(self):
-        for shape in self.shapes:
-            shape.draw(self.main_screen)
+        for index, shape in enumerate(self.shapes):
+            shape.draw(self.main_screen, index == self.current_num)
         self.draw_lines(self.main_screen)
         pygame.display.flip()
-
-    def add_point(self, pos):
-        if len(self.lines) > 0:
-            self.lines[-1].append(pos)
 
     def get_color(self):
         return (0, 0 ,0)
@@ -76,6 +80,7 @@ class SDLThread:
                 radius = int(sum(radius_list) / len(radius_list))
                 self.shapes.append(Model.Circle((cx, cy), radius, self.get_color(), self.panel.get_input()))
         self.lines = []
+        self.current_num = len(self.shapes)
         self.main_screen.fill((255, 255, 255))
         self.panel.set_text(self.shapes[-1].get_shape(), "")
 
@@ -91,19 +96,24 @@ class SDLThread:
                 # 鼠标单击左键
                 if event.button == 1:
                     # 处于等待绘制状态
-                    if self.draw_state == 0:
-                        self.draw_state = 1
+                    if self.state == 0:
+                        self.state = 1
                         self.lines.append([])
                     # 处于正在绘制状态
-                    elif self.draw_state == 1:
-                        self.draw_state = 0
-                    self.add_point(pos)
+                    elif self.state == 1:
+                        self.state = 0
+                    elif self.state == 2:
+                        for index, shape in enumerate(self.shapes):
+                            if shape.judge_point(pos):
+                                self.current_num = index
+                                self.panel.set_text("", shape.info)
+                                break
                 # 鼠标单击右键
                 elif event.button == 3:
                     pass
             elif event.type == pygame.MOUSEMOTION:
                 pos = pygame.mouse.get_pos()
-                if self.draw_state == 1 and pos[1] < self.size[1]:
+                if self.state == 1 and pos[1] < self.size[1]:
                     self.add_point(pos)
 
             self.draw()
@@ -127,11 +137,11 @@ class MyFrame(wx.Frame):
     def __init__(self, parent, panel_id, title, panel_size, win_size):
         wx.Frame.__init__(self, parent, panel_id, title, size=win_size)
         self.SetMaxSize(win_size)
-        self.input_box = wx.TextCtrl(self, -1, '', pos=(310, 620), size=(200, 30))
-        self.type_box = wx.TextCtrl(self,  -1, '', pos=(110, 620), size=(100, 30))
+        self.input_box = wx.TextCtrl(self, -1, '', pos=(310, 610), size=(200, 30))
+        self.type_box = wx.TextCtrl(self,  -1, '', pos=(110, 610), size=(100, 30))
         self.type_box.SetEditable(False)
         self.identify_button = wx.Button(self, label="识别", pos=(10, 610), size=(80, 30))
-        self.next_button = wx.Button(self, label="下一图层", pos=(10, 650), size=(80, 30))
+        self.choose_button = wx.Button(self, label="选择", pos=(10, 650), size=(80, 30))
         self.pnlSDL = SDLPanel(self, -1, panel_size)
 
     def get_input(self):
