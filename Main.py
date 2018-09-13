@@ -7,6 +7,7 @@ import thread
 import pygame
 import cv2 as cv
 import Model
+import Tools
 
 
 class SDLThread:
@@ -110,10 +111,10 @@ class SDLThread:
         ret, binary = cv.threshold(gray, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU)
 
         out_binary, contours, hierarchy = cv.findContours(binary, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-        for cnt in range(len(contours)):
+        for cnt in contours:
             # 轮廓逼近
-            epsilon = 0.03 * cv.arcLength(contours[cnt], True)
-            approx = cv.approxPolyDP(contours[cnt], epsilon, True)
+            epsilon = 0.03 * cv.arcLength(cnt, True)
+            approx = cv.approxPolyDP(cnt, epsilon, True)
 
             # 分析几何形状
             corners = len(approx)
@@ -122,22 +123,22 @@ class SDLThread:
                 points = [(p[0][0], p[0][1]) for p in approx]
                 self.shapes.append(Model.Triangle(points, self.color, self.panel.get_input()))
             elif corners == 4:
-                x_list = [p[0][0] for p in approx]
-                y_list = [p[0][1] for p in approx]
-                x_list.sort()
-                y_list.sort()
-                pos = ((x_list[0] + x_list[1]) / 2, (y_list[0] + y_list[1]) / 2)
-                size = ((x_list[2] + x_list[3]) / 2 - pos[0], (y_list[2] + y_list[3]) / 2 - pos[1])
-                if float(abs(size[0] - size[1])) / max(size[0], size[1]) < 0.1:
-                    self.shapes.append(Model.Square(pos, (size[0] + size[1]) / 2,
-                                                    self.color, self.panel.get_input()))
-                else:
-                    self.shapes.append(Model.Rect(pos, size, self.color, self.panel.get_input()))
+                rect = cv.minAreaRect(cnt)
+                box = cv.boxPoints(rect)
+                points = [(p[0], p[1]) for p in box]
+                a = Tools.get_distance(points[0], points[1])
+                b = Tools.get_distance(points[0], points[3])
+                if abs(a - b) / max(a, b) < 0.15:
+                    points[1] = (b / a * points[1][0] + (1 - b / a) * points[0][0],
+                                 b / a * points[1][1] + (1 - b / a) * points[0][1])
+                    points[2] = (b / a * points[2][0] + (1 - b / a) * points[3][0],
+                                 b / a * points[2][1] + (1 - b / a) * points[3][1])
+                self.shapes.append(Model.Rect(points, self.color, self.panel.get_input()))
             elif corners >= 7:
-                mm = cv.moments(contours[cnt])
+                mm = cv.moments(cnt)
                 cx = int(mm['m10'] / mm['m00'])
                 cy = int(mm['m01'] / mm['m00'])
-                radius_list = map(lambda point: math.sqrt((point[0][0] - cx)**2 + (point[0][1] - cy)**2), approx)
+                radius_list = map(lambda point: Tools.get_distance(point[0], (cx, cy)), approx)
                 radius = int(sum(radius_list) / len(radius_list))
                 self.shapes.append(Model.Circle((cx, cy), radius, self.color, self.panel.get_input()))
         self.lines = []
@@ -163,11 +164,15 @@ class SDLThread:
                     elif self.state == 1:
                         self.state = 0
                     elif self.state == 2:
+                        flag = True
                         for index, shape in enumerate(self.shapes):
                             if shape.judge_point(pos):
                                 self.current_num = index
                                 self.panel.set_text("选择的图形形状：" + shape.get_shape(), shape.info)
+                                flag = False
                                 break
+                        if flag:
+                            self.current_num = len(self.shapes)
                 # 鼠标单击右键
                 elif event.button == 3:
                     pass
