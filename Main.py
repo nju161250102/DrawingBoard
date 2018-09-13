@@ -17,36 +17,52 @@ class SDLThread:
         self.shapes = []
         self.lines = []
         self.current_num = 0
+        self.color = (0, 0, 0)
         self.state = 0  # 0-等待绘制 1-正在绘制 2-选择模式
         self.panel.identify_button.Bind(wx.EVT_BUTTON, self.get_shape)
         self.panel.choose_button.Bind(wx.EVT_BUTTON, self.choose_event)
         self.panel.draw_button.Bind(wx.EVT_BUTTON, self.draw_event)
+        self.panel.color_button.Bind(wx.EVT_BUTTON, self.color_event)
 
     def add_point(self, pos):
         if len(self.lines) > 0:
             self.lines[-1].append(pos)
 
     def choose_event(self, event):
+        if len(self.lines) > 0:
+            return
         self.state = 2
+        self.panel.set_draw_button_label("绘图")
+
+    def color_event(self, event):
+        dlg = wx.ColourDialog(self.panel)
+        dlg.GetColourData().SetChooseFull(True)  # 创建颜色对象数据
+        if dlg.ShowModal() == wx.ID_OK:
+            color = dlg.GetColourData().GetColour()  # 根据选择设置颜色
+            self.color = color[0], color[1], color[2]
+        dlg.Destroy()
 
     def draw_event(self, event):
-        self.state = 0
-        self.current_num = len(self.shapes)
-        self.panel.set_text("请绘制图形", "")
+        if self.state == 2:
+            self.state = 0
+            self.current_num = len(self.shapes)
+            self.panel.set_draw_button_label("撤销")
+            self.panel.set_text("请绘制图形", "")
+        elif self.state == 0:
+            if len(self.lines) > 0:
+                self.lines.pop()
 
     def draw_lines(self, screen):
         for line in self.lines:
             if len(line) > 1:
-                pygame.draw.lines(screen, self.get_color(), False, line, 1)
+                pygame.draw.lines(screen, self.color, False, line, 1)
 
     def draw(self):
+        self.main_screen.fill((255, 255, 255))
         for index, shape in enumerate(self.shapes):
             shape.draw(self.main_screen, index == self.current_num)
         self.draw_lines(self.main_screen)
         pygame.display.flip()
-
-    def get_color(self):
-        return (0, 0 ,0)
 
     def get_shape(self, event):
         if self.state != 0 or len(self.lines) == 0:
@@ -71,7 +87,7 @@ class SDLThread:
             # print approx
             if corners == 3:
                 points = [(p[0][0], p[0][1]) for p in approx]
-                self.shapes.append(Model.Triangle(points, self.get_color(), self.panel.get_input()))
+                self.shapes.append(Model.Triangle(points, self.color, self.panel.get_input()))
             elif corners == 4:
                 x_list = [p[0][0] for p in approx]
                 y_list = [p[0][1] for p in approx]
@@ -81,19 +97,18 @@ class SDLThread:
                 size = ((x_list[2] + x_list[3]) / 2 - pos[0], (y_list[2] + y_list[3]) / 2 - pos[1])
                 if float(abs(size[0] - size[1])) / max(size[0], size[1]) < 0.1:
                     self.shapes.append(Model.Square(pos, (size[0] + size[1]) / 2,
-                                                    self.get_color(), self.panel.get_input()))
+                                                    self.color, self.panel.get_input()))
                 else:
-                    self.shapes.append(Model.Rect(pos, size, self.get_color(), self.panel.get_input()))
+                    self.shapes.append(Model.Rect(pos, size, self.color, self.panel.get_input()))
             elif corners >= 7:
                 mm = cv.moments(contours[cnt])
                 cx = int(mm['m10'] / mm['m00'])
                 cy = int(mm['m01'] / mm['m00'])
                 radius_list = map(lambda point: math.sqrt((point[0][0] - cx)**2 + (point[0][1] - cy)**2), approx)
                 radius = int(sum(radius_list) / len(radius_list))
-                self.shapes.append(Model.Circle((cx, cy), radius, self.get_color(), self.panel.get_input()))
+                self.shapes.append(Model.Circle((cx, cy), radius, self.color, self.panel.get_input()))
         self.lines = []
         self.current_num = len(self.shapes)
-        self.main_screen.fill((255, 255, 255))
         self.panel.set_text("识别结果：" + self.shapes[-1].get_shape(), "")
 
     def run(self):
@@ -151,15 +166,19 @@ class MyFrame(wx.Frame):
         wx.Frame.__init__(self, parent, panel_id, title, size=win_size)
         self.SetMaxSize(win_size)
         self.choose_button = wx.Button(self, label="选择", pos=(10, 610), size=(70, 30))
-        self.draw_button = wx.Button(self, label="绘图", pos=(90, 610), size=(70, 30))
+        self.draw_button = wx.Button(self, label="撤销", pos=(90, 610), size=(70, 30))
         self.identify_button = wx.Button(self, label="识别", pos=(170, 610), size=(70, 30))
-        self.input_box = wx.TextCtrl(self, -1, '', pos=(250, 610), size=(210, 30))
+        self.color_button = wx.Button(self, label="颜色", pos=(250, 610), size=(70, 30))
+        self.input_box = wx.TextCtrl(self, -1, '', pos=(330, 610), size=(210, 30))
         self.type_box = wx.TextCtrl(self,  -1, '', pos=(0, 650), size=(win_size[0], 30))
         self.type_box.SetEditable(False)
         self.pnlSDL = SDLPanel(self, -1, panel_size)
 
     def get_input(self):
         return self.input_box.GetValue()
+
+    def set_draw_button_label(self, label):
+        self.draw_button.SetLabel(label)
 
     def set_text(self, label, info):
         self.input_box.SetValue(info)
