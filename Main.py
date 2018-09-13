@@ -2,6 +2,7 @@
 import wx
 import os
 import math
+import pickle
 import thread
 import pygame
 import cv2 as cv
@@ -23,6 +24,8 @@ class SDLThread:
         self.panel.choose_button.Bind(wx.EVT_BUTTON, self.choose_event)
         self.panel.draw_button.Bind(wx.EVT_BUTTON, self.draw_event)
         self.panel.color_button.Bind(wx.EVT_BUTTON, self.color_event)
+        self.panel.save_button.Bind(wx.EVT_BUTTON, self.save_event)
+        self.panel.open_button.Bind(wx.EVT_BUTTON, self.open_event)
 
     def add_point(self, pos):
         if len(self.lines) > 0:
@@ -51,6 +54,36 @@ class SDLThread:
         elif self.state == 0:
             if len(self.lines) > 0:
                 self.lines.pop()
+
+    def save_event(self, event):
+        with wx.FileDialog(self.panel, "保存文件", wildcard="画板文件 (*)|*|PNG图像 (*.png)|*.png", style=wx.FD_SAVE) as fd:
+            if fd.ShowModal() == wx.ID_CANCEL:
+                return
+            pathname = fd.GetPath()
+            file_type = fd.GetFilterIndex()
+            try:
+                if file_type == 0:
+                    with open(pathname, 'wb') as f:
+                        pickle.dump(self.shapes, f)
+                        f.close()
+                        self.panel.set_text("文件保存成功", None)
+                elif file_type == 1:
+                    pygame.image.save(self.main_screen, pathname)
+            except IOError:
+                self.panel.set_text("文件保存出错", None)
+
+    def open_event(self, event):
+        with wx.FileDialog(self.panel, "保存文件", wildcard=u"画板文件 (*)|*", style=wx.FD_OPEN) as fd:
+            if fd.ShowModal() == wx.ID_CANCEL:
+                return
+            pathname = fd.GetPath()
+            try:
+                with open(pathname, 'rb') as f:
+                    self.shapes = pickle.load(f)
+                    self.current_num = len(self.shapes)
+                    self.panel.set_text("读取文件成功", None)
+            except IOError:
+                self.panel.set_text("读取文件出错", None)
 
     def draw_lines(self, screen):
         for line in self.lines:
@@ -170,8 +203,10 @@ class MyFrame(wx.Frame):
         self.identify_button = wx.Button(self, label="识别", pos=(170, 610), size=(70, 30))
         self.color_button = wx.Button(self, label="颜色", pos=(250, 610), size=(70, 30))
         self.input_box = wx.TextCtrl(self, -1, '', pos=(330, 610), size=(210, 30))
-        self.type_box = wx.TextCtrl(self,  -1, '', pos=(0, 650), size=(win_size[0], 30))
-        self.type_box.SetEditable(False)
+        self.save_button = wx.Button(self, label="保存", pos=(550, 610), size=(70, 30))
+        self.open_button = wx.Button(self, label="打开", pos=(630, 610), size=(70, 30))
+        self.info_box = wx.TextCtrl(self,  -1, '', pos=(0, 650), size=(win_size[0], 30))
+        self.info_box.SetEditable(False)
         self.pnlSDL = SDLPanel(self, -1, panel_size)
 
     def get_input(self):
@@ -180,9 +215,10 @@ class MyFrame(wx.Frame):
     def set_draw_button_label(self, label):
         self.draw_button.SetLabel(label)
 
-    def set_text(self, label, info):
-        self.input_box.SetValue(info)
-        self.type_box.SetValue(label)
+    def set_text(self, info, text):
+        if text is not None:
+            self.input_box.SetValue(text)
+        self.info_box.SetValue(info)
 
 
 def main():
