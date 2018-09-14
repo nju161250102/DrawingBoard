@@ -5,21 +5,46 @@ import Tools
 
 class Shape(object):
     def __init__(self, color, info):
+        """
+        形状父类
+        :param color: 颜色
+        :param info: 标注信息
+        """
         self.color = color
         self.info = info
 
     def draw(self, screen, active):
+        """
+        绘制形状
+        :param screen: 用于绘制的pygame.Surface
+        :param active: 当前形状是否被选中
+        """
         pass
 
     def get_shape(self):
+        """
+        获取形状名称
+        :return: 返回形状名称
+        """
         pass
 
     def judge_point(self, point):
+        """
+        判断点是否在形状内部
+        :param point: 点坐标(x, y)
+        :return: Boolean
+        """
         pass
 
 
 class Triangle(Shape):
     def __init__(self, points, color, info):
+        """
+        三角形
+        :param points: 三个顶点的坐标
+        :param color: 颜色
+        :param info: 标注
+        """
         Shape.__init__(self, color, info)
         self.points = points
 
@@ -36,6 +61,12 @@ class Triangle(Shape):
 
 class Rect(Shape):
     def __init__(self, points, color, info):
+        """
+        矩形（包括长方形和正方形）
+        :param points: 四个顶点的坐标
+        :param color: 颜色
+        :param info: 标注
+        """
         Shape.__init__(self, color, info)
         self.points = points
 
@@ -55,6 +86,13 @@ class Rect(Shape):
 
 class Circle(Shape):
     def __init__(self, pos, radius, color, info):
+        """
+        圆形
+        :param pos: 圆心位置
+        :param radius: 半径
+        :param color: 颜色
+        :param info: 标注信息
+        """
         Shape.__init__(self, color, info)
         self.pos = pos
         self.radius = radius

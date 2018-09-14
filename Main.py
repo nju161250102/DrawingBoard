@@ -1,7 +1,6 @@
 # coding=utf-8
 import wx
 import os
-import math
 import pickle
 import thread
 import pygame
@@ -21,6 +20,7 @@ class SDLThread:
         self.current_num = 0
         self.color = (0, 0, 0)
         self.state = 0  # 0-等待绘制 1-正在绘制 2-选择模式
+        # 绑定按钮事件
         self.panel.identify_button.Bind(wx.EVT_BUTTON, self.get_shape)
         self.panel.choose_button.Bind(wx.EVT_BUTTON, self.choose_event)
         self.panel.draw_button.Bind(wx.EVT_BUTTON, self.draw_event)
