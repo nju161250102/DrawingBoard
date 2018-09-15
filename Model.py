@@ -21,6 +21,14 @@ class Shape(object):
         """
         pass
 
+    def draw_info(self, screen, pos):
+        pygame.font.init()
+        font_obj = pygame.font.SysFont('微软雅黑', 20)
+        text_obj = font_obj.render(self.info, True, self.color)
+        text_rect = text_obj.get_rect()
+        text_rect.center = pos
+        screen.blit(text_obj, text_rect)
+
     def get_shape(self):
         """
         获取形状名称
@@ -50,6 +58,7 @@ class Triangle(Shape):
 
     def draw(self, screen, active):
         pygame.draw.lines(screen, self.color, True, self.points, 3 if active else 1)
+        self.draw_info(screen, self.points[0])
 
     def get_shape(self):
         return "三角形"
@@ -72,6 +81,7 @@ class Rect(Shape):
 
     def draw(self, screen, active):
         pygame.draw.lines(screen, self.color, True, self.points, 3 if active else 1)
+        self.draw_info(screen, ((self.points[0][0] + self.points[1][0])/2, (self.points[0][1] + self.points[3][1])/2))
 
     def get_shape(self):
         if Tools.get_distance(self.points[0], self.points[1]) - Tools.get_distance(self.points[0], self.points[3]) < 1:
@@ -99,6 +109,7 @@ class Circle(Shape):
 
     def draw(self, screen, active):
         pygame.draw.circle(screen, self.color, self.pos, self.radius, 3 if active else 1)
+        self.draw_info(screen, self.pos)
 
     def get_shape(self):
         return "圆形"
