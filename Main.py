@@ -142,8 +142,9 @@ class SDLThread:
                 radius = int(sum(radius_list) / len(radius_list))
                 self.shapes.append(Model.Circle((cx, cy), radius, self.color, self.panel.get_input()))
         self.lines = []
-        self.current_num = len(self.shapes)
-        self.panel.set_text("识别结果：" + self.shapes[-1].get_shape(), "")
+        if self.current_num != len(self.shapes):
+            self.current_num = len(self.shapes)
+            self.panel.set_text("识别结果：" + self.shapes[-1].get_shape(), "")
 
     def run(self):
         while True:
@@ -182,6 +183,7 @@ class SDLThread:
                     self.add_point(pos)
             if self.current_num < len(self.shapes):
                 self.shapes[self.current_num].info = self.panel.get_input()
+                self.shapes[self.current_num].color = self.color
             self.draw()
 
     def start(self):
